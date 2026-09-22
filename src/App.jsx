@@ -368,7 +368,7 @@ export default function App() {
             onClick={() => setActiveTab("create")}
             style={activeTab === "create" ? styles.activeTabBtn : styles.tabBtn}
           >
-            + Yeni Sipariş (POST)
+            + Yeni Sipariş
           </button>
           <button onClick={handleLogout} style={styles.logoutButton}>
             Çıkış
