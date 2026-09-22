@@ -5,34 +5,57 @@ const API_BASE_URL = "https://main-api.yuksi.tr/api";
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("jwt_token") || "");
   const [isRegistering, setIsRegistering] = useState(false);
-  const [activeTab, setActiveTab] = useState("active"); // 'active', 'completed', 'create', 'detail'
+  const [activeTab, setActiveTab] = useState("active");
 
-  // Auth Form Alanları
+  // Auth Form
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("905361111111");
 
-  // Yeni Sipariş Oluşturma (POST) Form Alanları
-  const [orderDescription, setOrderDescription] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [orderAddress, setOrderAddress] = useState("");
+  // Query Parametreleri (GET istekleri için)
+  const [activeFilter, setActiveFilter] = useState("");
+  const [completedPage, setCompletedPage] = useState(1);
+  const [completedLimit, setCompletedLimit] = useState(10);
 
-  // Tekil Sipariş Detayı için ID
-  const [searchId, setSearchId] = useState("");
-  const [singleOrder, setSingleOrder] = useState(null);
+  // Sürücü Yanıtı (POST /api/orders/{id}/driver-response) Parametreleri
+  const [driverId, setDriverId] = useState(
+    "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  );
+  const [isAccepted, setIsAccepted] = useState(true);
 
-  // Sürücü Yanıtı için state
-  const [driverResponseText, setDriverResponseText] = useState("");
+  // Detaylı Yeni Sipariş (POST /api/orders) Alanları
+  const [userId, setUserId] = useState("");
+  const [orderNumber, setOrderNumber] = useState("");
+  const [serviceType, setServiceType] = useState("");
+  const [carrierType, setCarrierType] = useState("");
+  const [pickupLat, setPickupLat] = useState(0);
+  const [pickupLng, setPickupLng] = useState(0);
+  const [pCity, setPCity] = useState("");
+  const [pDistrict, setPDistrict] = useState("");
+  const [pNeighborhood, setPNeighborhood] = useState("");
+  const [pAddressText, setPAddressText] = useState("");
+  const [pBuildingNo, setPBuildingNo] = useState("");
+  const [dCity, setDCity] = useState("");
+  const [dDistrict, setDDistrict] = useState("");
+  const [dNeighborhood, setDNeighborhood] = useState("");
+  const [dAddressText, setDAddressText] = useState("");
+  const [dBuildingNo, setDBuldingNo] = useState("");
+  const [weightCategory, setWeightCategory] = useState("");
+  const [isThermal, setIsThermal] = useState(false);
+  const [cargoNote, setCargoNote] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [basePrice, setBasePrice] = useState(0);
+  const [discount, setDiscount] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [currency, setCurrency] = useState("TRY");
 
-  // Veriler ve Durumlar
   const [ordersList, setOrdersList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Giriş Yap
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -43,14 +66,10 @@ export default function App() {
         headers: { "Content-Type": "application/json", accept: "text/plain" },
         body: JSON.stringify({ email, password }),
       });
-
       const responseText = await response.text();
       if (!response.ok) throw new Error(`Giriş başarısız: ${responseText}`);
-
       const data = JSON.parse(responseText);
       const userToken = data.access_token || data.token;
-      if (!userToken) throw new Error("Token alınamadı!");
-
       localStorage.setItem("jwt_token", userToken);
       setToken(userToken);
     } catch (err) {
@@ -58,11 +77,8 @@ export default function App() {
     }
   };
 
-  // Kayıt Ol
   const handleRegister = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccessMsg("");
     try {
       const response = await fetch(`${API_BASE_URL}/Auth/register`, {
         method: "POST",
@@ -70,38 +86,36 @@ export default function App() {
         body: JSON.stringify({
           first_name: firstName,
           last_name: lastName,
-          email: email,
-          password: password,
-          phone: phone,
+          email,
+          password,
+          phone,
         }),
       });
-
-      const responseText = await response.text();
-      if (!response.ok) throw new Error(`Kayıt başarısız: ${responseText}`);
-
-      setSuccessMsg("Kayıt başarılı! Şimdi giriş yapabilirsiniz.");
+      if (!response.ok) throw new Error("Kayıt başarısız.");
+      setSuccessMsg("Kayıt başarılı! Giriş yapabilirsiniz.");
       setIsRegistering(false);
     } catch (err) {
       setError(err.message);
     }
   };
 
-  // 1. GET /api/orders/active
+  // 1. GET /api/orders/active (filter parametreli)
   const fetchActiveOrders = async () => {
     setActiveTab("active");
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/orders/active`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          accept: "application/json",
+      const queryParam = activeFilter
+        ? `?filter=${encodeURIComponent(activeFilter)}`
+        : "";
+      const response = await fetch(
+        `${API_BASE_URL}/orders/active${queryParam}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: "application/json",
+          },
         },
-      });
-      if (response.status === 401) {
-        handleLogout();
-        throw new Error("Oturum süresi doldu.");
-      }
-      if (!response.ok) throw new Error("Aktif siparişler yüklenemedi.");
+      );
       const data = await response.json();
       setOrdersList(Array.isArray(data) ? data : data.orders || []);
     } catch (err) {
@@ -111,22 +125,20 @@ export default function App() {
     }
   };
 
-  // 2. GET /api/orders/completed
+  // 2. GET /api/orders/completed (page ve limit parametreli)
   const fetchCompletedOrders = async () => {
     setActiveTab("completed");
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/orders/completed`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          accept: "application/json",
+      const response = await fetch(
+        `${API_BASE_URL}/orders/completed?page=${completedPage}&limit=${completedLimit}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: "application/json",
+          },
         },
-      });
-      if (response.status === 401) {
-        handleLogout();
-        throw new Error("Oturum süresi doldu.");
-      }
-      if (!response.ok) throw new Error("Tamamlanan siparişler yüklenemedi.");
+      );
       const data = await response.json();
       setOrdersList(Array.isArray(data) ? data : data.orders || []);
     } catch (err) {
@@ -136,35 +148,47 @@ export default function App() {
     }
   };
 
-  // 3. GET /api/orders/{id}
-  const fetchOrderById = async (e) => {
-    if (e) e.preventDefault();
-    if (!searchId) return;
-    setLoading(true);
-    setError("");
-    setSingleOrder(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/orders/${searchId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          accept: "application/json",
-        },
-      });
-      if (!response.ok) throw new Error("Sipariş bulunamadı veya ID hatalı.");
-      const data = await response.json();
-      setSingleOrder(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 4. POST /api/orders
+  // 3. POST /api/orders
   const handleCreateOrder = async (e) => {
     e.preventDefault();
     setError("");
     setSuccessMsg("");
+
+    const payload = {
+      user_id: userId,
+      order_number: orderNumber,
+      service_type: serviceType,
+      carrier_type: carrierType,
+      pickup_latitude: Number(pickupLat),
+      pickup_longitude: Number(pickupLng),
+      pickup_location: {
+        city: pCity,
+        district: pDistrict,
+        neighborhood: pNeighborhood,
+        address_text: pAddressText,
+        building_no: pBuildingNo,
+      },
+      dropoff_location: {
+        city: dCity,
+        district: dDistrict,
+        neighborhood: dNeighborhood,
+        address_text: dAddressText,
+        building_no: dBuildingNo,
+      },
+      cargo_details: {
+        weight_category: weightCategory,
+        is_thermal: Boolean(isThermal),
+        note: cargoNote,
+        photos: photoUrl ? [photoUrl] : [],
+      },
+      pricing: {
+        base_price: Number(basePrice),
+        discount: Number(discount),
+        total: Number(total),
+        currency: currency,
+      },
+    };
+
     try {
       const response = await fetch(`${API_BASE_URL}/orders`, {
         method: "POST",
@@ -173,32 +197,21 @@ export default function App() {
           Authorization: `Bearer ${token}`,
           accept: "*/*",
         },
-        body: JSON.stringify({
-          description: orderDescription,
-          customer_name: customerName,
-          address: orderAddress,
-        }),
+        body: JSON.stringify(payload),
       });
       const responseText = await response.text();
       if (!response.ok)
         throw new Error(`Sipariş oluşturulamadı: ${responseText}`);
 
       setSuccessMsg("Sipariş başarıyla oluşturuldu!");
-      setOrderDescription("");
-      setCustomerName("");
-      setOrderAddress("");
       fetchActiveOrders();
     } catch (err) {
       setError(err.message);
     }
   };
 
-  // 5. POST /api/orders/{id}/driver-response
+  // 4. POST /api/orders/{id}/driver-response
   const handleDriverResponse = async (orderId) => {
-    if (!driverResponseText) {
-      alert("Lütfen bir sürücü yanıtı girin.");
-      return;
-    }
     try {
       const response = await fetch(
         `${API_BASE_URL}/orders/${orderId}/driver-response`,
@@ -209,18 +222,20 @@ export default function App() {
             Authorization: `Bearer ${token}`,
             accept: "*/*",
           },
-          body: JSON.stringify({ response: driverResponseText }),
+          body: JSON.stringify({
+            driver_id: driverId,
+            is_accepted: isAccepted,
+          }),
         },
       );
       if (!response.ok) throw new Error("Sürücü yanıtı iletilemedi.");
       alert("Sürücü yanıtı başarıyla gönderildi!");
-      setDriverResponseText("");
     } catch (err) {
       alert(err.message);
     }
   };
 
-  // 6. POST /api/orders/{id}/confirm
+  // 5. POST /api/orders/{id}/confirm
   const handleConfirmOrder = async (orderId) => {
     try {
       const response = await fetch(
@@ -244,18 +259,15 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchActiveOrders();
-    }
+    if (token) fetchActiveOrders();
   }, [token]);
 
-  // Giriş Ekranı
   if (!token) {
     return (
       <div style={styles.container}>
         <div style={styles.card}>
           <h2 style={styles.title}>
-            {isRegistering ? "Yeni Hesap Kaydı" : "Yuksi Admin Girişi"}
+            {isRegistering ? "Kayıt Ol" : "Giriş Yap"}
           </h2>
           {error && <div style={styles.error}>{error}</div>}
           {successMsg && <div style={styles.success}>{successMsg}</div>}
@@ -265,80 +277,65 @@ export default function App() {
           >
             {isRegistering && (
               <>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Ad</label>
-                  <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    style={styles.input}
-                    required
-                  />
-                </div>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Soyad</label>
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    style={styles.input}
-                    required
-                  />
-                </div>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Telefon</label>
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    style={styles.input}
-                    required
-                  />
-                </div>
+                <input
+                  type="text"
+                  placeholder="Ad"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  style={styles.input}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Soyad"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  style={styles.input}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Telefon"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  style={styles.input}
+                  required
+                />
               </>
             )}
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>E-posta</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={styles.input}
-                required
-              />
-            </div>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Şifre</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={styles.input}
-                required
-              />
-            </div>
+            <input
+              type="email"
+              placeholder="E-posta"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={styles.input}
+              required
+            />
+            <input
+              type="password"
+              placeholder="Şifre"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={styles.input}
+              required
+            />
             <button type="submit" style={styles.button}>
-              {isRegistering ? "Kayıt Ol" : "Giriş Yap"}
+              {isRegistering ? "Kayıt Ol" : "Giriş"}
             </button>
           </form>
           <p
             style={styles.switchText}
-            onClick={() => {
-              setIsRegistering(!isRegistering);
-              setError("");
-              setSuccessMsg("");
-            }}
+            onClick={() => setIsRegistering(!isRegistering)}
           >
             {isRegistering
-              ? "Zaten hesabınız var mı? Giriş yapın"
-              : "Hesabınız yok mu? Kayıt olun"}
+              ? "Zaten hesabın var mı? Giriş yap"
+              : "Hesabın yok mu? Kayıt ol"}
           </p>
         </div>
       </div>
     );
   }
 
-  // Yönetim Paneli
   return (
     <div style={styles.dashboardContainer}>
       <div style={styles.headerBar}>
@@ -359,16 +356,10 @@ export default function App() {
             Tamamlananlar
           </button>
           <button
-            onClick={() => setActiveTab("detail")}
-            style={activeTab === "detail" ? styles.activeTabBtn : styles.tabBtn}
-          >
-            Sipariş Sorgula (ID)
-          </button>
-          <button
             onClick={() => setActiveTab("create")}
             style={activeTab === "create" ? styles.activeTabBtn : styles.tabBtn}
           >
-            + Yeni Sipariş (Ekle)
+            + Yeni Sipariş
           </button>
           <button onClick={handleLogout} style={styles.logoutButton}>
             Çıkış
@@ -376,77 +367,53 @@ export default function App() {
         </div>
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
-      {successMsg && <div style={styles.success}>{successMsg}</div>}
-
-      {/* 1 & 2. Aktif veya Tamamlanan Listeler */}
-      {(activeTab === "active" || activeTab === "completed") && (
+      {activeTab === "active" && (
         <div style={styles.tableCard}>
-          <div style={styles.tableHeader}>
-            <h3>
-              {activeTab === "active"
-                ? "Aktif Siparişler Listesi"
-                : "Tamamlanan Siparişler Listesi"}
-            </h3>
-            <button
-              onClick={
-                activeTab === "active"
-                  ? fetchActiveOrders
-                  : fetchCompletedOrders
-              }
-              style={styles.secondaryButton}
-            >
-              Yenile
+          <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
+            <input
+              type="text"
+              placeholder="Filtrele (filter)..."
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value)}
+              style={{ ...styles.input, maxWidth: "250px" }}
+            />
+            <button onClick={fetchActiveOrders} style={styles.buttonSmall}>
+              Filtreyi Uygula
             </button>
           </div>
+          <h3>Aktif Siparişler Listesi</h3>
           {loading ? (
-            <div style={styles.centerText}>Yükleniyor...</div>
-          ) : ordersList.length === 0 ? (
-            <div style={styles.centerText}>Kayıt bulunamadı.</div>
+            <div>Yükleniyor...</div>
           ) : (
             <table style={styles.table}>
               <thead>
-                <tr style={styles.trHead}>
-                  <th style={styles.th}>ID</th>
-                  <th style={styles.th}>Müşteri / Detay</th>
-                  <th style={styles.th}>Durum</th>
-                  <th style={styles.thRight}>İşlemler</th>
+                <tr>
+                  <th style={styles.th}>Sipariş No</th>
+                  <th style={styles.th}>Servis Tipi</th>
+                  <th style={styles.th}>Toplam Tutar</th>
+                  <th style={styles.th}>İşlemler</th>
                 </tr>
               </thead>
               <tbody>
-                {ordersList.map((order) => {
-                  const oId = order.id || order.orderId;
+                {ordersList.map((o, index) => {
+                  const oId = o.id || o.orderId;
                   return (
-                    <tr key={oId} style={styles.tr}>
-                      <td style={styles.td}>{oId}</td>
+                    <tr key={index} style={styles.tr}>
+                      <td style={styles.td}>{o.order_number || oId}</td>
+                      <td style={styles.td}>{o.service_type || "-"}</td>
                       <td style={styles.td}>
-                        {order.description || order.customerName || "Detay Yok"}
+                        {o.pricing?.total} {o.pricing?.currency}
                       </td>
                       <td style={styles.td}>
-                        <span style={styles.badge}>
-                          {order.status || "Bilinmiyor"}
-                        </span>
-                      </td>
-                      <td style={styles.tdRight}>
-                        {activeTab === "active" && (
-                          <button
-                            onClick={() => handleConfirmOrder(oId)}
-                            style={styles.confirmButton}
-                          >
-                            Onayla
-                          </button>
-                        )}
-                        <input
-                          type="text"
-                          placeholder="Sürücü yanıtı..."
-                          onChange={(e) =>
-                            setDriverResponseText(e.target.value)
-                          }
-                          style={styles.smallInput}
-                        />
+                        <button
+                          onClick={() => handleConfirmOrder(oId)}
+                          style={styles.confirmBtn}
+                        >
+                          Onayla
+                        </button>
                         <button
                           onClick={() => handleDriverResponse(oId)}
-                          style={styles.driverButton}
+                          style={styles.driverBtn}
                         >
                           Sürücü Yanıtı Gönder
                         </button>
@@ -460,93 +427,119 @@ export default function App() {
         </div>
       )}
 
-      {/* 3. ID ile Tekil Sipariş Sorgulama GET /api/orders/{id} */}
-      {activeTab === "detail" && (
-        <div style={styles.cardFormContainer}>
-          <h3 style={{ color: "#fff", marginBottom: "16px" }}>
-            Sipariş Detayı Sorgula (GET /orders/{`id`})
-          </h3>
-          <form
-            onSubmit={fetchOrderById}
-            style={{ display: "flex", gap: "10px", marginBottom: "20px" }}
-          >
+      {activeTab === "completed" && (
+        <div style={styles.tableCard}>
+          <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
             <input
-              type="text"
-              placeholder="Sipariş ID girin..."
-              value={searchId}
-              onChange={(e) => setSearchId(e.target.value)}
-              style={styles.input}
-              required
+              type="number"
+              placeholder="Sayfa (page)"
+              value={completedPage}
+              onChange={(e) => setCompletedPage(e.target.value)}
+              style={{ ...styles.input, maxWidth: "120px" }}
             />
-            <button type="submit" style={styles.button}>
-              Sorgula
+            <input
+              type="number"
+              placeholder="Limit"
+              value={completedLimit}
+              onChange={(e) => setCompletedLimit(e.target.value)}
+              style={{ ...styles.input, maxWidth: "120px" }}
+            />
+            <button onClick={fetchCompletedOrders} style={styles.buttonSmall}>
+              Getir
             </button>
-          </form>
-          {singleOrder && (
-            <div
-              style={{
-                backgroundColor: "#0f172a",
-                padding: "16px",
-                borderRadius: "8px",
-                color: "#e2e8f0",
-              }}
-            >
-              <p>
-                <strong>ID:</strong> {singleOrder.id || singleOrder.orderId}
-              </p>
-              <p>
-                <strong>Açıklama:</strong> {singleOrder.description}
-              </p>
-              <p>
-                <strong>Müşteri:</strong> {singleOrder.customerName}
-              </p>
-              <p>
-                <strong>Durum:</strong> {singleOrder.status}
-              </p>
-            </div>
+          </div>
+          <h3>Tamamlanan Siparişler</h3>
+          {loading ? (
+            <div>Yükleniyor...</div>
+          ) : (
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Sipariş No</th>
+                  <th style={styles.th}>Servis Tipi</th>
+                  <th style={styles.th}>Toplam Tutar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordersList.map((o, index) => (
+                  <tr key={index} style={styles.tr}>
+                    <td style={styles.td}>{o.order_number || o.id}</td>
+                    <td style={styles.td}>{o.service_type || "-"}</td>
+                    <td style={styles.td}>
+                      {o.pricing?.total} {o.pricing?.currency}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       )}
 
-      {/* 4. Yeni Sipariş Oluşturma POST /api/orders */}
       {activeTab === "create" && (
         <div style={styles.cardFormContainer}>
           <h3 style={{ color: "#fff", marginBottom: "16px" }}>
-            Yeni Sipariş Oluştur (POST /orders)
+            Yeni Sipariş Oluştur
           </h3>
+          {error && <div style={styles.error}>{error}</div>}
+          {successMsg && <div style={styles.success}>{successMsg}</div>}
+
           <form onSubmit={handleCreateOrder} style={styles.form}>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Müşteri Adı</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                style={styles.input}
-                required
-              />
-            </div>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Açıklama</label>
-              <input
-                type="text"
-                value={orderDescription}
-                onChange={(e) => setOrderDescription(e.target.value)}
-                style={styles.input}
-                required
-              />
-            </div>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Adres</label>
-              <input
-                type="text"
-                value={orderAddress}
-                onChange={(e) => setOrderAddress(e.target.value)}
-                style={styles.input}
-                required
-              />
-            </div>
+            <input
+              type="text"
+              placeholder="User ID"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              style={styles.input}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Order Number"
+              value={orderNumber}
+              onChange={(e) => setOrderNumber(e.target.value)}
+              style={styles.input}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Service Type"
+              value={serviceType}
+              onChange={(e) => setServiceType(e.target.value)}
+              style={styles.input}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Carrier Type"
+              value={carrierType}
+              onChange={(e) => setCarrierType(e.target.value)}
+              style={styles.input}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Alım Şehir"
+              value={pCity}
+              onChange={(e) => setPCity(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Teslim Şehir"
+              value={dCity}
+              onChange={(e) => setDCity(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="number"
+              placeholder="Toplam Tutar (total)"
+              value={total}
+              onChange={(e) => setTotal(e.target.value)}
+              style={styles.input}
+            />
             <button type="submit" style={styles.button}>
-              Sipariş Gönder
+              Siparişi Gönder
             </button>
           </form>
         </div>
@@ -577,7 +570,7 @@ const styles = {
     padding: "32px",
     borderRadius: "12px",
     width: "100%",
-    maxWidth: "600px",
+    maxWidth: "700px",
     margin: "0 auto",
     border: "1px solid #334155",
   },
@@ -605,27 +598,15 @@ const styles = {
     marginBottom: "16px",
     fontSize: "13px",
   },
-  form: { display: "flex", flexDirection: "column", gap: "14px" },
-  inputGroup: { display: "flex", flexDirection: "column", gap: "6px" },
-  label: { color: "#94a3b8", fontSize: "13px" },
+  form: { display: "flex", flexDirection: "column", gap: "10px" },
   input: {
     backgroundColor: "#0f172a",
     border: "1px solid #334155",
     borderRadius: "6px",
-    padding: "10px",
+    padding: "8px",
     color: "#fff",
-    outline: "none",
     fontSize: "14px",
     width: "100%",
-  },
-  smallInput: {
-    backgroundColor: "#0f172a",
-    border: "1px solid #334155",
-    borderRadius: "4px",
-    padding: "4px 8px",
-    color: "#fff",
-    fontSize: "12px",
-    marginRight: "6px",
   },
   button: {
     backgroundColor: "#2563eb",
@@ -635,6 +616,35 @@ const styles = {
     border: "none",
     fontWeight: "bold",
     cursor: "pointer",
+    marginTop: "10px",
+  },
+  buttonSmall: {
+    backgroundColor: "#334155",
+    color: "#fff",
+    padding: "8px 12px",
+    borderRadius: "6px",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "12px",
+  },
+  confirmBtn: {
+    backgroundColor: "#16a34a",
+    color: "#fff",
+    border: "none",
+    padding: "6px 10px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    marginRight: "6px",
+    fontSize: "11px",
+  },
+  driverBtn: {
+    backgroundColor: "#ca8a04",
+    color: "#fff",
+    border: "none",
+    padding: "6px 10px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "11px",
   },
   switchText: {
     color: "#38bdf8",
@@ -659,8 +669,6 @@ const styles = {
     borderRadius: "12px",
     border: "1px solid #334155",
     marginBottom: "24px",
-    flexWrap: "wrap",
-    gap: "10px",
   },
   headerTitle: { fontSize: "18px", fontWeight: "bold", margin: 0 },
   tabBtn: {
@@ -682,15 +690,6 @@ const styles = {
     fontSize: "12px",
     fontWeight: "bold",
   },
-  secondaryButton: {
-    backgroundColor: "#334155",
-    color: "#fff",
-    border: "none",
-    padding: "6px 12px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "12px",
-  },
   logoutButton: {
     backgroundColor: "rgba(239, 68, 68, 0.2)",
     color: "#f87171",
@@ -702,63 +701,22 @@ const styles = {
   },
   tableCard: {
     backgroundColor: "#1e293b",
+    padding: "20px",
     borderRadius: "12px",
     border: "1px solid #334155",
-    overflow: "hidden",
   },
-  tableHeader: {
-    padding: "16px 24px",
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    textAlign: "left",
+    marginTop: "10px",
+  },
+  th: {
+    padding: "10px",
     borderBottom: "1px solid #334155",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  centerText: { padding: "40px", textAlign: "center", color: "#94a3b8" },
-  table: { width: "100%", borderCollapse: "collapse", textAlign: "left" },
-  trHead: {
-    backgroundColor: "#0f172a",
     color: "#94a3b8",
     fontSize: "12px",
-    textTransform: "uppercase",
   },
-  th: { padding: "12px 24px" },
-  thRight: { padding: "12px 24px", textAlign: "right" },
   tr: { borderBottom: "1px solid #334155" },
-  td: { padding: "16px 24px", fontSize: "14px", color: "#e2e8f0" },
-  tdRight: {
-    padding: "16px 24px",
-    textAlign: "right",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: "6px",
-  },
-  badge: {
-    backgroundColor: "rgba(234, 179, 8, 0.1)",
-    color: "#facc15",
-    border: "1px solid rgba(234, 179, 8, 0.3)",
-    padding: "4px 8px",
-    borderRadius: "4px",
-    fontSize: "12px",
-  },
-  confirmButton: {
-    backgroundColor: "#16a34a",
-    color: "#fff",
-    border: "none",
-    padding: "6px 10px",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "11px",
-    fontWeight: "bold",
-  },
-  driverButton: {
-    backgroundColor: "#ca8a04",
-    color: "#fff",
-    border: "none",
-    padding: "6px 10px",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "11px",
-    fontWeight: "bold",
-  },
+  td: { padding: "10px", fontSize: "13px", color: "#e2e8f0" },
 };
