@@ -14,42 +14,51 @@ export default function App() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("905361111111");
 
-  // Query Parametreleri (GET istekleri için)
+  // Query Parametreleri
   const [activeFilter, setActiveFilter] = useState("");
   const [completedPage, setCompletedPage] = useState(1);
   const [completedLimit, setCompletedLimit] = useState(10);
 
-  // Sürücü Yanıtı (POST /api/orders/{id}/driver-response) Parametreleri
+  // Sürücü Yanıtı Parametreleri
   const [driverId, setDriverId] = useState(
     "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   );
   const [isAccepted, setIsAccepted] = useState(true);
 
-  // Detaylı Yeni Sipariş (POST /api/orders) Alanları
+  // --- TAM ŞEMA: POST /api/orders Alanları ---
   const [userId, setUserId] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
   const [serviceType, setServiceType] = useState("");
   const [carrierType, setCarrierType] = useState("");
-  const [pickupLat, setPickupLat] = useState(0);
-  const [pickupLng, setPickupLng] = useState(0);
+  const [pickupLatitude, setPickupLatitude] = useState(0);
+  const [pickupLongitude, setPickupLongitude] = useState(0);
+
+  // pickup_location
   const [pCity, setPCity] = useState("");
   const [pDistrict, setPDistrict] = useState("");
   const [pNeighborhood, setPNeighborhood] = useState("");
   const [pAddressText, setPAddressText] = useState("");
   const [pBuildingNo, setPBuildingNo] = useState("");
+
+  // dropoff_location
   const [dCity, setDCity] = useState("");
   const [dDistrict, setDDistrict] = useState("");
   const [dNeighborhood, setDNeighborhood] = useState("");
   const [dAddressText, setDAddressText] = useState("");
   const [dBuildingNo, setDBuldingNo] = useState("");
+
+  // cargo_details
   const [weightCategory, setWeightCategory] = useState("");
-  const [isThermal, setIsThermal] = useState(false);
+  const [isThermal, setIsThermal] = useState(true);
   const [cargoNote, setCargoNote] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
+
+  // pricing
   const [basePrice, setBasePrice] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [total, setTotal] = useState(0);
   const [currency, setCurrency] = useState("TRY");
+  // -------------------------------------------
 
   const [ordersList, setOrdersList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -99,7 +108,6 @@ export default function App() {
     }
   };
 
-  // 1. GET /api/orders/active (filter parametreli)
   const fetchActiveOrders = async () => {
     setActiveTab("active");
     setLoading(true);
@@ -125,7 +133,6 @@ export default function App() {
     }
   };
 
-  // 2. GET /api/orders/completed (page ve limit parametreli)
   const fetchCompletedOrders = async () => {
     setActiveTab("completed");
     setLoading(true);
@@ -148,7 +155,7 @@ export default function App() {
     }
   };
 
-  // 3. POST /api/orders
+  // Tam Şema Gönderimi
   const handleCreateOrder = async (e) => {
     e.preventDefault();
     setError("");
@@ -159,8 +166,8 @@ export default function App() {
       order_number: orderNumber,
       service_type: serviceType,
       carrier_type: carrierType,
-      pickup_latitude: Number(pickupLat),
-      pickup_longitude: Number(pickupLng),
+      pickup_latitude: Number(pickupLatitude),
+      pickup_longitude: Number(pickupLongitude),
       pickup_location: {
         city: pCity,
         district: pDistrict,
@@ -210,7 +217,6 @@ export default function App() {
     }
   };
 
-  // 4. POST /api/orders/{id}/driver-response
   const handleDriverResponse = async (orderId) => {
     try {
       const response = await fetch(
@@ -235,7 +241,6 @@ export default function App() {
     }
   };
 
-  // 5. POST /api/orders/{id}/confirm
   const handleConfirmOrder = async (orderId) => {
     try {
       const response = await fetch(
@@ -359,7 +364,7 @@ export default function App() {
             onClick={() => setActiveTab("create")}
             style={activeTab === "create" ? styles.activeTabBtn : styles.tabBtn}
           >
-            + Yeni Sipariş
+            + Yeni Sipariş (Tam Şema)
           </button>
           <button onClick={handleLogout} style={styles.logoutButton}>
             Çıkış
@@ -415,7 +420,7 @@ export default function App() {
                           onClick={() => handleDriverResponse(oId)}
                           style={styles.driverBtn}
                         >
-                          Sürücü Yanıtı Gönder
+                          Sürücü Yanıtı
                         </button>
                       </td>
                     </tr>
@@ -479,12 +484,15 @@ export default function App() {
       {activeTab === "create" && (
         <div style={styles.cardFormContainer}>
           <h3 style={{ color: "#fff", marginBottom: "16px" }}>
-            Yeni Sipariş Oluştur
+            Yeni Sipariş Oluştur (Tam Şema)
           </h3>
           {error && <div style={styles.error}>{error}</div>}
           {successMsg && <div style={styles.success}>{successMsg}</div>}
 
           <form onSubmit={handleCreateOrder} style={styles.form}>
+            <h4 style={{ color: "#38bdf8", margin: "10px 0 5px 0" }}>
+              Temel Bilgiler
+            </h4>
             <input
               type="text"
               placeholder="User ID"
@@ -517,29 +525,160 @@ export default function App() {
               style={styles.input}
               required
             />
+
+            <h4 style={{ color: "#38bdf8", margin: "10px 0 5px 0" }}>
+              Alım Yeri Konumu (Pickup Location)
+            </h4>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <input
+                type="number"
+                placeholder="Latitude"
+                value={pickupLatitude}
+                onChange={(e) => setPickupLatitude(e.target.value)}
+                style={styles.input}
+              />
+              <input
+                type="number"
+                placeholder="Longitude"
+                value={pickupLongitude}
+                onChange={(e) => setPickupLongitude(e.target.value)}
+                style={styles.input}
+              />
+            </div>
             <input
               type="text"
-              placeholder="Alım Şehir"
+              placeholder="Şehir (City)"
               value={pCity}
               onChange={(e) => setPCity(e.target.value)}
               style={styles.input}
             />
             <input
               type="text"
-              placeholder="Teslim Şehir"
+              placeholder="İlçe (District)"
+              value={pDistrict}
+              onChange={(e) => setPDistrict(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Mahalle (Neighborhood)"
+              value={pNeighborhood}
+              onChange={(e) => setPNeighborhood(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Adres Metni (Address Text)"
+              value={pAddressText}
+              onChange={(e) => setPAddressText(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Bina No (Building No)"
+              value={pBuildingNo}
+              onChange={(e) => setPBuildingNo(e.target.value)}
+              style={styles.input}
+            />
+
+            <h4 style={{ color: "#38bdf8", margin: "10px 0 5px 0" }}>
+              Teslim Yeri Konumu (Dropoff Location)
+            </h4>
+            <input
+              type="text"
+              placeholder="Teslim Şehir (City)"
               value={dCity}
               onChange={(e) => setDCity(e.target.value)}
               style={styles.input}
             />
             <input
+              type="text"
+              placeholder="Teslim İlçe (District)"
+              value={dDistrict}
+              onChange={(e) => setDDistrict(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Teslim Mahalle (Neighborhood)"
+              value={dNeighborhood}
+              onChange={(e) => setDNeighborhood(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Teslim Adres Metni"
+              value={dAddressText}
+              onChange={(e) => setDAddressText(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Teslim Bina No"
+              value={dBuildingNo}
+              onChange={(e) => setDBuldingNo(e.target.value)}
+              style={styles.input}
+            />
+
+            <h4 style={{ color: "#38bdf8", margin: "10px 0 5px 0" }}>
+              Kargo Detayları (Cargo Details)
+            </h4>
+            <input
+              type="text"
+              placeholder="Ağırlık Kategorisi (Weight Category)"
+              value={weightCategory}
+              onChange={(e) => setWeightCategory(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Kargo Notu (Note)"
+              value={cargoNote}
+              onChange={(e) => setCargoNote(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Fotoğraf URL (Photos)"
+              value={photoUrl}
+              onChange={(e) => setPhotoUrl(e.target.value)}
+              style={styles.input}
+            />
+
+            <h4 style={{ color: "#38bdf8", margin: "10px 0 5px 0" }}>
+              Fiyatlandırma (Pricing)
+            </h4>
+            <input
               type="number"
-              placeholder="Toplam Tutar (total)"
+              placeholder="Taban Fiyat (Base Price)"
+              value={basePrice}
+              onChange={(e) => setBasePrice(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="number"
+              placeholder="İndirim (Discount)"
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="number"
+              placeholder="Toplam Tutar (Total)"
               value={total}
               onChange={(e) => setTotal(e.target.value)}
               style={styles.input}
             />
+            <input
+              type="text"
+              placeholder="Para Birimi (Currency - Örn: TRY)"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              style={styles.input}
+            />
+
             <button type="submit" style={styles.button}>
-              Siparişi Gönder
+              Tam Şemalı Siparişi Gönder
             </button>
           </form>
         </div>
@@ -598,7 +737,7 @@ const styles = {
     marginBottom: "16px",
     fontSize: "13px",
   },
-  form: { display: "flex", flexDirection: "column", gap: "10px" },
+  form: { display: "flex", flexDirection: "column", gap: "8px" },
   input: {
     backgroundColor: "#0f172a",
     border: "1px solid #334155",
@@ -616,7 +755,7 @@ const styles = {
     border: "none",
     fontWeight: "bold",
     cursor: "pointer",
-    marginTop: "10px",
+    marginTop: "15px",
   },
   buttonSmall: {
     backgroundColor: "#334155",
